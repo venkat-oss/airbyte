@@ -38,8 +38,7 @@ module.exports = function (plop) {
   plop.setGenerator('Python Source', {
     description: 'Generate an Airbyte Source written in Python',
     prompts: [{type: 'input', name: 'name', message: 'Source name, without the "source-" prefix e.g: "google-analytics"'}],
-    actions: [
-        {
+    actions: [{
         abortOnFail: true,
         type:'addMany',
         destination: pythonSourceOutputRoot,
@@ -132,7 +131,7 @@ module.exports = function (plop) {
           templateFile: `${genericSourceInputRoot}/.gitignore.hbs`,
           path: `${genericSourceOutputRoot}/.gitignore`
         },
-          {type: 'emitSuccess', outputPath: genericSourceOutputRoot}
+        {type: 'emitSuccess', outputPath: genericSourceOutputRoot}
       ]
     });
 

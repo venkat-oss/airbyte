@@ -4,6 +4,15 @@ set -e
 
 . tools/lib/lib.sh
 
+cmd_scaffold() {
+  echo "Scaffolding connector"
+
+  docker run --rm -it -v "$(pwd)":/airbyte -w /airbyte --entrypoint "/bin/sh" node:14.11.0-slim -c "
+    cd airbyte-integrations/connector-templates/generator &&
+    npm install &&
+    npm run generate"
+}
+
 _get_rule_base() {
   local rule; rule=$(echo "$1" | tr -s / :)
   echo ":$rule"
@@ -14,7 +23,8 @@ _check_tag_exists() {
 }
 
 cmd_build() {
-  local path=$1
+  local path=$1; shift || error "Missing target (root path of integration) $USAGE"
+  [ -d "$path" ] || error "Path must be the root path of the integration"
 
   echo "Building $path"
     ./gradlew "$(_get_rule_base "$path"):clean"
@@ -35,7 +45,8 @@ _execute_task_if_exists() {
 }
 
 cmd_publish() {
-  local path=$1
+  local path=$1; shift || error "Missing target (root path of integration) $USAGE"
+  [ -d "$path" ] || error "Path must be the root path of the integration"
 
   cmd_build "$path"
 
@@ -62,20 +73,19 @@ cmd_publish() {
 
 USAGE="
 
-Usage: $(basename $0) <build|publish> <integration_root_path>
+Usage: $(basename "$0") <cmd> <arguments>
+
+Available commands:
+  scaffold
+  build  <integration_root_path>
+  publish  <integration_root_path>
 "
 
 main() {
   assert_root
 
-  local cmd=$1
-  shift || error "Missing cmd $USAGE"
-  local path=$1
-  shift || error "Missing target (root path of integration) $USAGE"
-
-  [ -d "$path" ] || error "Path must be the root path of the integration"
-
-  cmd_"$cmd" "$path"
+  local cmd=$1; shift || error "Missing cmd $USAGE"
+  cmd_"$cmd" "$@"
 }
 
 main "$@"
