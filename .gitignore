@@ -7,6 +7,7 @@ data
 .dockerversions
 
 secrets
+!airbyte-integrations/connector-templates/**/secrets
 
 # Python
 *.egg-info

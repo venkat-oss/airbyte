@@ -1,5 +1,4 @@
 'use strict';
-const fs = require('fs');
 const path = require('path');
 
 const getSuccessMessage = function(connectorName, outputPath){
@@ -21,106 +20,78 @@ We're always happy to provide you with any support :)
 }
 
 module.exports = function (plop) {
-  const pythonSourceInputRoot = '../source-python';
-  const singerSourceInputRoot = '../source-singer';
-  const genericSourceInputRoot = '../source-generic';
-
-  const basesDir = '../../bases';
   const outputDir = '../../connectors';
-  const pythonSourceOutputRoot = `${outputDir}/source-{{dashCase name}}`;
-  const singerSourceOutputRoot = `${outputDir}/source-{{dashCase name}}-singer`;
-  const genericSourceOutputRoot = `${outputDir}/source-{{dashCase name}}`;
+  const templateRootDir = '..'
+
+  const sourcePythonName = 'source-python';
+  const sourcePythonInputRoot = `${templateRootDir}/${sourcePythonName}`;
+  const sourcePythonOutputRoot = `${outputDir}/source-{{dashCase name}}`;
 
   plop.setActionType('emitSuccess', function(answers, config, plopApi){
-      console.log(getSuccessMessage(answers.name, plopApi.renderString(config.outputPath, answers)));
+    console.log(getSuccessMessage(answers.name, plopApi.renderString(config.outputPath, answers)));
   });
 
-  plop.setGenerator('Python Source', {
+  plop.setGenerator(sourcePythonName, {
     description: 'Generate an Airbyte Source written in Python',
-    prompts: [{type: 'input', name: 'name', message: 'Source name, without the "source-" prefix e.g: "google-analytics"'}],
+    prompts: [{
+      type: 'input', name: 'name', message: 'Source name, without the "source-" prefix e.g: "google-analytics"'
+    }],
     actions: [{
-        abortOnFail: true,
-        type:'addMany',
-        destination: pythonSourceOutputRoot,
-        base: pythonSourceInputRoot,
-        templateFiles: `${pythonSourceInputRoot}/**/**`,
-        globOptions: {ignore:'.secrets'}
-      },
-        // plop doesn't add dotfiles by default so we manually add them
-      {
-        type:'add',
-        abortOnFail: true,
-        templateFile: `${pythonSourceInputRoot}/.secrets/config.json.hbs`,
-        path: `${pythonSourceOutputRoot}/secrets/config.json`
-      },
-      {
-        type:'add',
-        abortOnFail: true,
-        templateFile: `${pythonSourceInputRoot}/.gitignore.hbs`,
-        path: `${pythonSourceOutputRoot}/.gitignore`
-      },
-      {
-        type:'add',
-        abortOnFail: true,
-        templateFile: `${pythonSourceInputRoot}/.dockerignore.hbs`,
-        path: `${pythonSourceOutputRoot}/.dockerignore`
-      },
-      {type: 'emitSuccess', outputPath: pythonSourceOutputRoot}]
-  });
+      type:'addMany',
+      abortOnFail: true,
 
-  plop.setGenerator('Singer-based Python Source', {
+      templateFiles: `${sourcePythonInputRoot}/**/*`,
+      base: sourcePythonInputRoot,
+      globOptions: { dot: true, unique: true },
+
+      destination: sourcePythonOutputRoot
+    },
+    {type: 'emitSuccess', outputPath: sourcePythonOutputRoot}
+  ]});
+
+  const sourceSingerName = 'source-singer';
+  const sourceSingerInputRoot = `${templateRootDir}/${sourceSingerName}`;
+  const sourceSingerOutputRoot = `${outputDir}/source-{{dashCase name}}-singer`;
+
+  plop.setGenerator(sourceSingerName, {
     description: 'Generate an Airbyte Source written on top of a Singer Tap.',
     prompts: [{type: 'input', name: 'name', message: 'Source name, without the "source-" prefix e.g: "google-analytics"'}],
-    actions: [
-      {
-        abortOnFail: true,
-        type:'addMany',
-        destination: singerSourceOutputRoot,
-        base: singerSourceInputRoot,
-        templateFiles: `${singerSourceInputRoot}/**/**`,
-        globOptions: {ignore:'.secrets'}
-      },
-      {
-        type:'add',
-        abortOnFail: true,
-        templateFile: `${singerSourceInputRoot}/.secrets/config.json.hbs`,
-        path: `${singerSourceOutputRoot}/secrets/config.json`
-      },
-      {
-        type:'add',
-        abortOnFail: true,
-        templateFile: `${singerSourceInputRoot}/.gitignore.hbs`,
-        path: `${singerSourceOutputRoot}/.gitignore`
-      },
-      {
-        type:'add',
-        abortOnFail: true,
-        templateFile: `${singerSourceInputRoot}/.dockerignore.hbs`,
-        path: `${singerSourceOutputRoot}/.dockerignore`
-      },
-        {type: 'emitSuccess', outputPath: singerSourceOutputRoot},
-    ]
-  });
+    actions: [{
+      abortOnFail: true,
+      type:'addMany',
+      destination: sourceSingerOutputRoot,
+      base: sourceSingerInputRoot,
+      templateFiles: `${sourceSingerInputRoot}/**/**`,
+      globOptions: { dot: true }
+    },
+    {type: 'emitSuccess', outputPath: sourceSingerOutputRoot}
+  ]});
 
-  plop.setGenerator('Generic Source', {
+  const sourceGenericName = 'source-generic';
+  const sourceGenericInputRoot = `${templateRootDir}/${sourceGenericName}`;
+  const sourceGenericOutputRoot = `${outputDir}/source-{{dashCase name}}`;
+
+  plop.setGenerator(sourceGenericName, {
       description: 'Use if none of the other templates apply to your use case.',
-      prompts: [{type: 'input', name: 'name', message: 'Source name, without the "source-" prefix e.g: "google-analytics"'}],
+      prompts: [{
+        type: 'input', name: 'name', message: 'Source name, without the "source-" prefix e.g: "google-analytics"'
+      }],
       actions: [
         {
           abortOnFail: true,
           type:'addMany',
-          destination: genericSourceOutputRoot,
-          base: genericSourceInputRoot,
-          templateFiles: `${genericSourceInputRoot}/**/**`,
-          globOptions: {ignore:'.secrets'}
+          destination: sourceGenericOutputRoot,
+          base: sourceGenericInputRoot,
+          templateFiles: `${sourceGenericInputRoot}/**/**`,
+          globOptions: { dot: true }
         },
         {
           type:'add',
           abortOnFail: true,
-          templateFile: `${genericSourceInputRoot}/.gitignore.hbs`,
-          path: `${genericSourceOutputRoot}/.gitignore`
+          templateFile: `${sourceGenericInputRoot}/.gitignore.hbs`,
+          path: `${sourceGenericOutputRoot}/.gitignore`
         },
-        {type: 'emitSuccess', outputPath: genericSourceOutputRoot}
+        {type: 'emitSuccess', outputPath: sourceGenericOutputRoot}
       ]
     });
 

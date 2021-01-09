@@ -4,15 +4,6 @@ set -e
 
 . tools/lib/lib.sh
 
-cmd_scaffold() {
-  echo "Scaffolding connector"
-
-  docker run --rm -it -v "$(pwd)":/airbyte -w /airbyte --entrypoint "/bin/sh" node:14.11.0-slim -c "
-    cd airbyte-integrations/connector-templates/generator &&
-    npm install &&
-    npm run generate"
-}
-
 _get_rule_base() {
   local rule; rule=$(echo "$1" | tr -s / :)
   echo ":$rule"
@@ -20,6 +11,21 @@ _get_rule_base() {
 
 _check_tag_exists() {
   DOCKER_CLI_EXPERIMENTAL=enabled docker manifest inspect "$1" > /dev/null
+}
+
+cmd_test_scaffold() {
+  rm -rf "airbyte-integrations/connectors/source-scaffold-source-python"
+  cmd_scaffold "Python Source" scaffold-source-python
+}
+
+cmd_scaffold() {
+  echo "Scaffolding connector"
+
+  docker run --rm -it -v "$(pwd)":/airbyte -w /airbyte --entrypoint "/bin/sh" node:14.11.0-slim -c '
+    cd airbyte-integrations/connector-templates/generator &&
+    npm install &&
+    npm run generate "$@"
+  ' bash "$@"
 }
 
 cmd_build() {
