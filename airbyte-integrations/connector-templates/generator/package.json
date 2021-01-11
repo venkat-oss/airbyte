@@ -7,5 +7,8 @@
   },
   "devDependencies": {
     "plop": "^2.7.4"
+  },
+  "dependencies": {
+    "rimraf": "^3.0.2"
   }
 }

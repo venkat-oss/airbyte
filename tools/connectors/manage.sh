@@ -4,28 +4,24 @@ set -e
 
 . tools/lib/lib.sh
 
-_get_rule_base() {
-  local rule; rule=$(echo "$1" | tr -s / :)
-  echo ":$rule"
-}
-
 _check_tag_exists() {
   DOCKER_CLI_EXPERIMENTAL=enabled docker manifest inspect "$1" > /dev/null
 }
 
-cmd_test_scaffold() {
-  rm -rf "airbyte-integrations/connectors/source-scaffold-source-python"
-  cmd_scaffold "Python Source" scaffold-source-python
+cmd_generate_test_scaffolds() {
+  DELETE_FIRST=true cmd_scaffold source-generic scaffold-source-generic
+  DELETE_FIRST=true cmd_scaffold source-python scaffold-source-python
+  DELETE_FIRST=true cmd_scaffold source-singer scaffold-source # special case to avoid singer-singer
 }
 
 cmd_scaffold() {
   echo "Scaffolding connector"
 
-  docker run --rm -it -v "$(pwd)":/airbyte -w /airbyte --entrypoint "/bin/sh" node:14.11.0-slim -c '
+  (
     cd airbyte-integrations/connector-templates/generator &&
     npm install &&
     npm run generate "$@"
-  ' bash "$@"
+  )
 }
 
 cmd_build() {
@@ -33,18 +29,18 @@ cmd_build() {
   [ -d "$path" ] || error "Path must be the root path of the integration"
 
   echo "Building $path"
-    ./gradlew "$(_get_rule_base "$path"):clean"
-    ./gradlew "$(_get_rule_base "$path"):build"
-    ./gradlew "$(_get_rule_base "$path"):integrationTest"
+    ./gradlew "$(_to_gradle_path "$path" clean)"
+    ./gradlew "$(_to_gradle_path "$path" build)"
+    ./gradlew "$(_to_gradle_path "$path" integrationTest)"
 }
 
 _execute_task_if_exists() {
   local path=$1
   local task=$2
   echo "checking if $task exists."
-  if ./gradlew "$(_get_rule_base "$path"):tasks" --all | grep -qw "^$task"; then
+  if ./gradlew "$(_to_gradle_path "$path" tasks)" --all | grep -qw "^$task"; then
     echo "found $task exists. executing."
-    ./gradlew "$(_get_rule_base "$path"):$task"
+    ./gradlew "$(_to_gradle_path "$task")"
   fi
 }
 

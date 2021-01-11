@@ -1,5 +1,6 @@
 'use strict';
 const path = require('path');
+const rimraf = require('rimraf');
 
 const getSuccessMessage = function(connectorName, outputPath){
     return `
@@ -19,101 +20,72 @@ We're always happy to provide you with any support :)
 `
 }
 
+const TEMPLATES_ROOT = '..';
+const CONNECTORS_ROOT = '../../connectors';
+
+const SCAFFOLDS = [
+  {
+    name: 'source-python',
+    description: 'Generate an Airbyte Source written in Python',
+    outputName: 'source-{{dashCase name}}',
+    dotfiles: ['.gitignore.hbs', '.dockerignore.hbs']
+  },
+  {
+    name: 'source-singer',
+    description: 'Generate an Airbyte Source written on top of a Singer Tap.',
+    outputName: 'source-{{dashCase name}}-singer',
+    dotfiles: ['.gitignore.hbs', '.dockerignore.hbs']
+  },
+  {
+    name: 'source-generic',
+    description: 'Use if none of the other templates apply to your use case.',
+    outputName: 'source-{{dashCase name}}',
+    dotfiles: ['.gitignore.hbs']
+  }
+];
+
 module.exports = function (plop) {
-  const sourcePythonName = 'source-python';
-  const sourceSingerName = 'source-singer';
-  const sourceGenericName = 'source-generic';
 
-  const templateDir = '..';
-  const sourcePythonInputRoot = `${templateDir}/${sourcePythonName}`;
-  const sourceSingerInputRoot = `${templateDir}/${sourceSingerName}`;
-  const sourceGenericInputRoot = `${templateDir}/${sourceGenericName}`;
-
-  const outputDir = '../../connectors';
-  const sourcePythonOutputRoot = `${outputDir}/source-{{dashCase name}}`;
-  const sourceSingerOutputRoot = `${outputDir}/source-{{dashCase name}}-singer`;
-  const sourceGenericOutputRoot = `${outputDir}/source-{{dashCase name}}`;
+  let deleteFirst = process.env.DELETE_FIRST === 'true';
 
   plop.setActionType('emitSuccess', function(answers, config, plopApi){
       console.log(getSuccessMessage(answers.name, plopApi.renderString(config.outputPath, answers)));
   });
 
-  plop.setGenerator(sourcePythonName, {
-    description: 'Generate an Airbyte Source written in Python',
-    prompts: [{type: 'input', name: 'name', message: 'Source name, without the "source-" prefix e.g: "google-analytics"'}],
-    actions: [{
+  SCAFFOLDS.forEach(function (scaffold) {
+    const templateRoot = `${TEMPLATES_ROOT}/${scaffold.name}`;
+    const connectorRoot = `${CONNECTORS_ROOT}/${scaffold.outputName}`;
+
+    if (deleteFirst) {
+      rimraf.sync(connectorRoot);
+    }
+
+    let actions = [{
       type:'addMany',
       abortOnFail: true,
 
-      base: sourcePythonInputRoot,
-      templateFiles: `${sourcePythonInputRoot}/**/**`,
-      destination: sourcePythonOutputRoot,
-    },
-    // plop doesn't add dotfiles by default so we manually add them
-    {
-      type:'add',
-      abortOnFail: true,
+      base: templateRoot,
+      templateFiles: `${templateRoot}/**/*`,
+      destination: connectorRoot,
+    }];
 
-      templateFile: `${sourcePythonInputRoot}/.gitignore.hbs`,
-      path: `${sourcePythonOutputRoot}/.gitignore`
-    },
-    {
-      type:'add',
-      abortOnFail: true,
+    scaffold.dotfiles.forEach(function (filename) {
+      actions.push({
+        type:'add',
+        abortOnFail: true,
 
-      templateFile: `${sourcePythonInputRoot}/.dockerignore.hbs`,
-      path: `${sourcePythonOutputRoot}/.dockerignore`
-    },
-    {type: 'emitSuccess', outputPath: sourcePythonOutputRoot}]
+        templateFile: `${templateRoot}/${filename}`,
+        path: `${connectorRoot}/${filename.replace(/\.hbs$/, '')}`
+      });
+    });
+
+    actions.push({type: 'emitSuccess', outputPath: connectorRoot});
+
+    plop.setGenerator(scaffold.name, {
+      description: scaffold.description,
+      prompts: [{type: 'input', name: 'name', message: 'Source name, without the "source-" prefix e.g: "google-analytics"'}],
+      actions
+    });
   });
-
-  plop.setGenerator(sourceSingerName, {
-    description: 'Generate an Airbyte Source written on top of a Singer Tap.',
-    prompts: [{type: 'input', name: 'name', message: 'Source name, without the "source-" prefix e.g: "google-analytics"'}],
-    actions: [{
-      type:'addMany',
-      abortOnFail: true,
-
-      base: sourceSingerInputRoot,
-      templateFiles: `${sourceSingerInputRoot}/**/*`,
-      destination: sourceSingerOutputRoot,
-    },
-    {
-      type:'add',
-      abortOnFail: true,
-
-      templateFile: `${sourceSingerInputRoot}/.gitignore.hbs`,
-      path: `${sourceSingerOutputRoot}/.gitignore`
-    },
-    {
-      type:'add',
-      abortOnFail: true,
-
-      templateFile: `${sourceSingerInputRoot}/.dockerignore.hbs`,
-      path: `${sourceSingerOutputRoot}/.dockerignore`
-    },
-    {type: 'emitSuccess', outputPath: sourceSingerOutputRoot},
-  ]});
-
-  plop.setGenerator(sourceGenericName, {
-    description: 'Use if none of the other templates apply to your use case.',
-    prompts: [{type: 'input', name: 'name', message: 'Source name, without the "source-" prefix e.g: "google-analytics"'}],
-    actions: [{
-      type:'addMany',
-      abortOnFail: true,
-
-      base: sourceGenericInputRoot,
-      templateFiles: `${sourceGenericInputRoot}/**/*`,
-      destination: sourceGenericOutputRoot,
-    },
-    {
-      type:'add',
-      abortOnFail: true,
-
-      templateFile: `${sourceGenericInputRoot}/.gitignore.hbs`,
-      path: `${sourceGenericOutputRoot}/.gitignore`
-    },
-    {type: 'emitSuccess', outputPath: sourceGenericOutputRoot}
-  ]});
 
 };
