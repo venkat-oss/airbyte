@@ -45,29 +45,34 @@ const SCAFFOLDS = [
 ];
 
 module.exports = function (plop) {
-
   let deleteFirst = process.env.DELETE_FIRST === 'true';
 
   plop.setActionType('emitSuccess', function(answers, config, plopApi){
-      console.log(getSuccessMessage(answers.name, plopApi.renderString(config.outputPath, answers)));
+    console.log(getSuccessMessage(answers.name, plopApi.renderString(config.outputPath, answers)));
+  });
+
+  plop.setActionType('deleteFirst', function(answers, config, plopApi){
+    rimraf.sync(plopApi.renderString(config.outputPath, answers));
   });
 
   SCAFFOLDS.forEach(function (scaffold) {
     const templateRoot = `${TEMPLATES_ROOT}/${scaffold.name}`;
     const connectorRoot = `${CONNECTORS_ROOT}/${scaffold.outputName}`;
 
+    let actions = []
+
     if (deleteFirst) {
-      rimraf.sync(connectorRoot);
+      actions.push({type: 'deleteFirst', outputPath: connectorRoot});
     }
 
-    let actions = [{
+    actions.push({
       type:'addMany',
       abortOnFail: true,
 
       base: templateRoot,
       templateFiles: `${templateRoot}/**/*`,
       destination: connectorRoot,
-    }];
+    });
 
     scaffold.dotfiles.forEach(function (filename) {
       actions.push({

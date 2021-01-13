@@ -2,16 +2,18 @@ plugins {
     id "base"
 }
 
-task generateSourcePythonScaffold(type: Exec) {
+task generatePythonSourceScaffold(type: Exec) {
     inputs.files rootProject.fileTree('airbyte-integrations/connector-templates/source-python')
 
     workingDir rootDir
 
-    commandLine './tools/connectors/manage.sh', 'test_scaffold'
+    environment 'DELETE_FIRST', 'true'
+
+    commandLine './tools/connectors/manage.sh', 'scaffold', 'source-python', 'scaffold-source-python'
 
     outputs.dir rootProject.file('airbyte-integrations/connectors/source-scaffold-python-source')
 }
 
-project(":airbyte-integrations:connectors:source-scaffold-python-source") {
-    build.dependsOn generateSourcePythonScaffold
+project(":airbyte-integrations:connectors:source-scaffold-source-python") {
+    build.dependsOn generatePythonSourceScaffold
 }
