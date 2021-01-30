@@ -23,11 +23,12 @@ SOFTWARE.
 """
 
 from abc import ABC, abstractmethod
-from typing import Any, Iterator, Sequence
+from typing import Any, Iterator, Sequence, Mapping, MutableMapping, List, Callable
 
 import backoff
 import pendulum as pendulum
-from base_python.entrypoint import logger  # FIXME (Eugene K): register logger as standard python logger
+# FIXME (Eugene K): register logger as standard python logger
+from base_python.entrypoint import logger
 from facebook_business.exceptions import FacebookRequestError
 
 from .common import retry_pattern
@@ -41,6 +42,10 @@ class StreamAPI(ABC):
     def __init__(self, api, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._api = api
+
+    def _build_params(self, params: Mapping[str, Any] = None) -> MutableMapping[str, Any]:
+        params = params or {}
+        return {"limit": self.result_return_limit, **params}
 
     @abstractmethod
     def list(self, fields: Sequence[str] = None) -> Iterator[dict]:
@@ -66,24 +71,68 @@ class IncrementalStreamAPI(StreamAPI, ABC):
     def state(self, value):
         self._state = pendulum.parse(value[self.state_pk])
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, include_deleted=False, **kwargs):
         super().__init__(*args, **kwargs)
+        self._include_deleted = include_deleted
         self._state = None
+
+    def _build_params(self, params: Mapping[str, Any] = None) -> Iterator:
+        """Build complete params for request"""
+        result_params = super()._build_params(params)
+        for filters in self._build_filters():
+            result_params.setdefault("filtering", []).extend(filters)
+
+            yield result_params
+
+    def _build_filters(self) -> Iterator[List[Mapping[str, Any]]]:
+        """Build complete filters"""
+        for delete_filter in self._delete_filters():
+            filters = []
+            state_filter = self._state_filter()
+            if state_filter:
+                filters.append(state_filter)
+            if delete_filter:
+                filters.append(delete_filter)
+
+            yield filters
 
     def _state_filter(self):
         """Additional filters associated with state if any set"""
         if self._state:
             return {
-                "filtering": [
-                    {
-                        "field": f"{self.entity_prefix}.{self.state_pk}",
-                        "operator": "GREATER_THAN",
-                        "value": self._state.int_timestamp,
-                    },
-                ],
+                "field": f"{self.entity_prefix}.{self.state_pk}",
+                "operator": "GREATER_THAN",
+                "value": self._state.int_timestamp,
             }
 
         return {}
+
+    def _delete_filters(self):
+        """ We split single request into multiple requests with few delivery_info values"""
+        if self._include_deleted:
+            return {}
+
+        filt = {
+            "field": f"{self.entity_prefix}.delivery_info",
+            "operator": "IN",
+        }
+
+        filt_values = [
+            "active", "archived", "completed",
+            "limited", "not_delivering", "deleted",
+            "not_published", "pending_review", "permanently_deleted",
+            "recently_completed", "recently_rejected", "rejected",
+            "scheduled", "inactive"]
+
+        sub_list_length = 3
+        for i in range(0, len(filt_values), sub_list_length):
+            filt['value'] = filt_values[i:i + sub_list_length]
+            yield filt
+
+    def read(self, getter: Callable, params: Mapping[str, Any] = None) -> Iterator:
+        for complete_params in self._build_params(params):
+            batch = getter(params=complete_params)
+            yield from self.state_filter(batch)
 
     def state_filter(self, records: Iterator[dict]) -> Iterator[Any]:
         """Apply state filter to set of records, update cursor(state) if necessary in the end"""
@@ -99,7 +148,8 @@ class IncrementalStreamAPI(StreamAPI, ABC):
             stream_name = self.__class__.__name__
             if stream_name.endswith("API"):
                 stream_name = stream_name[:-3]
-            logger.info(f"Advancing bookmark for {stream_name} stream from {self._state} to {latest_cursor}")
+            logger.info(
+                f"Advancing bookmark for {stream_name} stream from {self._state} to {latest_cursor}")
             self._state = max(latest_cursor, self._state) if self._state else latest_cursor
 
 
@@ -140,8 +190,8 @@ class AdCreativeAPI(StreamAPI):
         yield from records
 
     @backoff_policy
-    def _get_creatives(self):
-        return self._api.account.get_ad_creatives(params={"limit": self.result_return_limit})
+    def _get_creatives(self) -> Iterator:
+        return self._api.account.get_ad_creatives(params=self._build_params())
 
 
 class AdsAPI(IncrementalStreamAPI):
@@ -151,17 +201,16 @@ class AdsAPI(IncrementalStreamAPI):
     state_pk = "updated_time"
 
     def list(self, fields: Sequence[str] = None) -> Iterator[dict]:
-        ads = self._get_ads({"limit": self.result_return_limit})
-        for record in self.state_filter(ads):
+        for record in self.read(getter=self._get_ads):
             yield self._extend_record(record, fields=fields)
 
     @backoff_policy
-    def _get_ads(self, params):
+    def _get_ads(self, params: Mapping[str, Any]):
         """
         This is necessary because the functions that call this endpoint return
         a generator, whose calls need decorated with a backoff.
         """
-        return self._api.account.get_ads(params={**params, **self._state_filter()}, fields=[self.state_pk])
+        return self._api.account.get_ads(params=params, fields=[self.state_pk])
 
     @backoff_policy
     def _extend_record(self, ad, fields):
@@ -175,9 +224,7 @@ class AdSetsAPI(IncrementalStreamAPI):
     state_pk = "updated_time"
 
     def list(self, fields: Sequence[str] = None) -> Iterator[dict]:
-        adsets = self._get_ad_sets({"limit": self.result_return_limit})
-
-        for adset in self.state_filter(adsets):
+        for adset in self.read(getter=self._get_ad_sets):
             yield self._extend_record(adset, fields=fields)
 
     @backoff_policy
@@ -186,7 +233,8 @@ class AdSetsAPI(IncrementalStreamAPI):
         This is necessary because the functions that call this endpoint return
         a generator, whose calls need decorated with a backoff.
         """
-        return self._api.account.get_ad_sets(params={**params, **self._state_filter()}, fields=[self.state_pk])
+        return self._api.account.get_ad_sets(params={**params, **self._state_filter()},
+                                             fields=[self.state_pk])
 
     @backoff_policy
     def _extend_record(self, ad_set, fields):
@@ -201,8 +249,7 @@ class CampaignAPI(IncrementalStreamAPI):
         """Read available campaigns"""
         pull_ads = "ads" in fields
         fields = [k for k in fields if k != "ads"]
-        campaigns = self._get_campaigns({"limit": self.result_return_limit})
-        for campaign in self.state_filter(campaigns):
+        for campaign in self.read(getter=self._get_campaigns):
             yield self._extend_record(campaign, fields=fields, pull_ads=pull_ads)
 
     @backoff_policy
@@ -222,8 +269,8 @@ class CampaignAPI(IncrementalStreamAPI):
         This is necessary because the functions that call this endpoint return
         a generator, whose calls need decorated with a backoff.
         """
-        return self._api.account.get_campaigns(params={**params, **self._state_filter()}, fields=[self.state_pk])
-
+        return self._api.account.get_campaigns(params={**params, **self._state_filter()},
+                                               fields=[self.state_pk])
 
 #
 # FIXME: Disabled until we populate test account with AdsInsights data to test

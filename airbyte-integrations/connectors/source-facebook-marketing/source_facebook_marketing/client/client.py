@@ -26,7 +26,8 @@ from typing import Any, Mapping, Tuple
 
 import pendulum as pendulum
 from base_python import BaseClient
-from base_python.entrypoint import logger  # FIXME (Eugene K): register logger as standard python logger
+# FIXME (Eugene K): register logger as standard python logger
+from base_python.entrypoint import logger
 from cached_property import cached_property
 from facebook_business import FacebookAdsApi
 from facebook_business.adobjects import user as fb_user
@@ -37,16 +38,17 @@ from .common import FacebookAPIException
 
 
 class Client(BaseClient):
-    def __init__(self, account_id: str, access_token: str, start_date: str):
+    def __init__(self, account_id: str, access_token: str, start_date: str,
+                 include_deleted: bool = False):
         self._account_id = account_id
         self._start_date = pendulum.parse(start_date)
 
         self._api = FacebookAdsApi.init(access_token=access_token)
         self._apis = {
-            "campaigns": CampaignAPI(self),
-            "adsets": AdSetsAPI(self),
-            "ads": AdsAPI(self),
-            "adcreatives": AdCreativeAPI(self),
+            "campaigns": CampaignAPI(self, include_deleted=include_deleted),
+            "adsets": AdSetsAPI(self, include_deleted=include_deleted),
+            "ads": AdsAPI(self, include_deleted=include_deleted),
+            "adcreatives": AdCreativeAPI(self),  # creatives don't support fetching deleted items
             # "ads_insights": AdsInsightAPI(self, start_date=self._start_date),
             # "ads_insights_age_and_gender": AdsInsightAPI(self, start_date=self._start_date, breakdowns=["age", "gender"]),
             # "ads_insights_country": AdsInsightAPI(self, start_date=self._start_date, breakdowns=["country"]),
@@ -86,7 +88,8 @@ class Client(BaseClient):
                 if account["account_id"] == account_id:
                     return account
         except FacebookRequestError as exc:
-            raise FacebookAPIException(f"Error: {exc.api_error_code()}, {exc.api_error_message()}") from exc
+            raise FacebookAPIException(
+                f"Error: {exc.api_error_code()}, {exc.api_error_message()}") from exc
 
         raise FacebookAPIException("Couldn't find account with id {}".format(account_id))
 
@@ -96,7 +99,8 @@ class Client(BaseClient):
         try:
             self._find_account(self._account_id)
         except FacebookAPIException as exc:
-            logger.error(str(exc))  # we might need some extra details, so log original exception here
+            logger.error(
+                str(exc))  # we might need some extra details, so log original exception here
             alive = False
             error_message = str(exc)
 
