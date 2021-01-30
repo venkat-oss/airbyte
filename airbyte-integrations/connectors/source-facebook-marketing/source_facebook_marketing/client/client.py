@@ -26,6 +26,7 @@ from typing import Any, Mapping, Tuple
 
 import pendulum as pendulum
 from base_python import BaseClient
+
 # FIXME (Eugene K): register logger as standard python logger
 from base_python.entrypoint import logger
 from cached_property import cached_property
@@ -38,8 +39,7 @@ from .common import FacebookAPIException
 
 
 class Client(BaseClient):
-    def __init__(self, account_id: str, access_token: str, start_date: str,
-                 include_deleted: bool = False):
+    def __init__(self, account_id: str, access_token: str, start_date: str, include_deleted: bool = False):
         self._account_id = account_id
         self._start_date = pendulum.parse(start_date)
 
@@ -88,8 +88,7 @@ class Client(BaseClient):
                 if account["account_id"] == account_id:
                     return account
         except FacebookRequestError as exc:
-            raise FacebookAPIException(
-                f"Error: {exc.api_error_code()}, {exc.api_error_message()}") from exc
+            raise FacebookAPIException(f"Error: {exc.api_error_code()}, {exc.api_error_message()}") from exc
 
         raise FacebookAPIException("Couldn't find account with id {}".format(account_id))
 
@@ -99,8 +98,7 @@ class Client(BaseClient):
         try:
             self._find_account(self._account_id)
         except FacebookAPIException as exc:
-            logger.error(
-                str(exc))  # we might need some extra details, so log original exception here
+            logger.error(str(exc))  # we might need some extra details, so log original exception here
             alive = False
             error_message = str(exc)
 

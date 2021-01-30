@@ -23,10 +23,11 @@ SOFTWARE.
 """
 
 from abc import ABC, abstractmethod
-from typing import Any, Iterator, Sequence, Mapping, MutableMapping, List, Callable
+from typing import Any, Callable, Iterator, List, Mapping, MutableMapping, Sequence
 
 import backoff
 import pendulum as pendulum
+
 # FIXME (Eugene K): register logger as standard python logger
 from base_python.entrypoint import logger
 from facebook_business.exceptions import FacebookRequestError
@@ -118,15 +119,25 @@ class IncrementalStreamAPI(StreamAPI, ABC):
         }
 
         filt_values = [
-            "active", "archived", "completed",
-            "limited", "not_delivering", "deleted",
-            "not_published", "pending_review", "permanently_deleted",
-            "recently_completed", "recently_rejected", "rejected",
-            "scheduled", "inactive"]
+            "active",
+            "archived",
+            "completed",
+            "limited",
+            "not_delivering",
+            "deleted",
+            "not_published",
+            "pending_review",
+            "permanently_deleted",
+            "recently_completed",
+            "recently_rejected",
+            "rejected",
+            "scheduled",
+            "inactive",
+        ]
 
         sub_list_length = 3
         for i in range(0, len(filt_values), sub_list_length):
-            filt['value'] = filt_values[i:i + sub_list_length]
+            filt["value"] = filt_values[i : i + sub_list_length]
             yield filt
 
     def read(self, getter: Callable, params: Mapping[str, Any] = None) -> Iterator:
@@ -148,8 +159,7 @@ class IncrementalStreamAPI(StreamAPI, ABC):
             stream_name = self.__class__.__name__
             if stream_name.endswith("API"):
                 stream_name = stream_name[:-3]
-            logger.info(
-                f"Advancing bookmark for {stream_name} stream from {self._state} to {latest_cursor}")
+            logger.info(f"Advancing bookmark for {stream_name} stream from {self._state} to {latest_cursor}")
             self._state = max(latest_cursor, self._state) if self._state else latest_cursor
 
 
@@ -233,8 +243,7 @@ class AdSetsAPI(IncrementalStreamAPI):
         This is necessary because the functions that call this endpoint return
         a generator, whose calls need decorated with a backoff.
         """
-        return self._api.account.get_ad_sets(params={**params, **self._state_filter()},
-                                             fields=[self.state_pk])
+        return self._api.account.get_ad_sets(params={**params, **self._state_filter()}, fields=[self.state_pk])
 
     @backoff_policy
     def _extend_record(self, ad_set, fields):
@@ -269,8 +278,8 @@ class CampaignAPI(IncrementalStreamAPI):
         This is necessary because the functions that call this endpoint return
         a generator, whose calls need decorated with a backoff.
         """
-        return self._api.account.get_campaigns(params={**params, **self._state_filter()},
-                                               fields=[self.state_pk])
+        return self._api.account.get_campaigns(params={**params, **self._state_filter()}, fields=[self.state_pk])
+
 
 #
 # FIXME: Disabled until we populate test account with AdsInsights data to test
