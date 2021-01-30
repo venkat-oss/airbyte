@@ -27,7 +27,6 @@ from typing import Any, Callable, Iterator, List, Mapping, MutableMapping, Seque
 
 import backoff
 import pendulum as pendulum
-
 # FIXME (Eugene K): register logger as standard python logger
 from base_python.entrypoint import logger
 from facebook_business.exceptions import FacebookRequestError
